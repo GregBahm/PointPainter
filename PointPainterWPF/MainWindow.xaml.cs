@@ -59,10 +59,9 @@ namespace Microsoft.Samples.Kinect.ColorBasics
 
         private FrameDescription depthFrameDescription;
         private FrameDescription colorFrameDescription;
-
-        private byte[] rawDepthPixels;
+        
         private byte[] allColorPixels;
-        private byte[] selectColorPixels;
+        private byte[] pointData;
 
         private byte[] depthPixels;
 
@@ -90,9 +89,8 @@ namespace Microsoft.Samples.Kinect.ColorBasics
             this.depthPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height];
 
             this.colorSpacePoints = new ColorSpacePoint[this.depthFrameDescription.Width * this.depthFrameDescription.Height];
-            this.rawDepthPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * 2];
             this.allColorPixels = new byte[this.colorFrameDescription.Width * this.colorFrameDescription.Height * 4];
-            this.selectColorPixels = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * 3];
+            this.pointData = new byte[this.depthFrameDescription.Width * this.depthFrameDescription.Height * 5];
 
             this.depthBitmap = new WriteableBitmap(this.depthFrameDescription.Width, this.depthFrameDescription.Height, 96.0, 96.0, PixelFormats.Gray8, null);
             this.colorBitmap = new WriteableBitmap(colorFrameDescription.Width, colorFrameDescription.Height, 96.0, 96.0, PixelFormats.Bgr32, null);
@@ -106,7 +104,7 @@ namespace Microsoft.Samples.Kinect.ColorBasics
             this.depthIndexToColorIndex = new int[this.depthFrameDescription.Width * this.depthFrameDescription.Height];
             this.DataContext = this;
 
-            this.communicationServer = new ServerCommunication(GetDepthDataForNetwork, GetColorDataForNetwork, GetDepthTableForNetwork);
+            this.communicationServer = new ServerCommunication(GetPointDataForNetwork, GetDepthTableForNetwork);
             this.communicationServer.Start();
 
             MyIP = Dns.GetHostEntry(Dns.GetHostName()).AddressList[3].ToString();
@@ -169,9 +167,9 @@ namespace Microsoft.Samples.Kinect.ColorBasics
             for (int i = 0; i < colorSpacePoints.Length; i++)
             {
                 int colorPixelIndex = depthIndexToColorIndex[i];
-                selectColorPixels[i * 3] = allColorPixels[colorPixelIndex * 4];
-                selectColorPixels[i * 3 + 1] = allColorPixels[colorPixelIndex * 4 + 1];
-                selectColorPixels[i * 3 + 2] = allColorPixels[colorPixelIndex * 4 + 2];
+                pointData[i * 5 + 2] = allColorPixels[colorPixelIndex * 4];
+                pointData[i * 5 + 3] = allColorPixels[colorPixelIndex * 4 + 1];
+                pointData[i * 5 + 4] = allColorPixels[colorPixelIndex * 4 + 2];
             }
         }
 
@@ -226,7 +224,7 @@ namespace Microsoft.Samples.Kinect.ColorBasics
                 // Values outside the reliable depth range are mapped to 0 (black).
                 byte depthPixel = (byte)(depth >= minDepth && depth <= maxDepth ? (depth / MapDepthToByte) : 0);
                 this.depthPixels[i] = depthPixel;
-                Array.Copy(BitConverter.GetBytes(depth), 0, this.rawDepthPixels, i * 2, 2);
+                Array.Copy(BitConverter.GetBytes(depth), 0, this.pointData, i * 5, 2);
             }
 
 
@@ -287,19 +285,12 @@ namespace Microsoft.Samples.Kinect.ColorBasics
             }
             return ret;
         }
-
-        private byte[] GetDepthDataForNetwork()
+        
+        private byte[] GetPointDataForNetwork()
         {
-            lock (rawDepthPixels)
+            lock (pointData)
             {
-                return rawDepthPixels;
-            }
-        }
-        private byte[] GetColorDataForNetwork()
-        {
-            lock (selectColorPixels)
-            {
-                return selectColorPixels;
+                return pointData;
             }
         }
     }

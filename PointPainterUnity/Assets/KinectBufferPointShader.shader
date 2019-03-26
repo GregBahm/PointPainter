@@ -60,7 +60,9 @@
 				fixed r = (fixed)intR / 255;
 				fixed g = (fixed)intG / 255;
 				fixed b = (fixed)intB / 255;
-				return fixed3(r,g,b);
+				fixed3 ret = fixed3(r,g,b); // Gamma correct
+				ret = pow(ret, 2.2);
+				return ret;
 			}
 			
             v2g vert(uint meshId : SV_VertexID, uint instanceId : SV_InstanceID)

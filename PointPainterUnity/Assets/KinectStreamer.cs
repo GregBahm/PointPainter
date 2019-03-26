@@ -18,10 +18,8 @@ public class KinectStreamer : MonoBehaviour
 
     public Material PointCloudMat;
 
-    private byte[] depthData;
-    private byte[] depthDataSwapper;
-    private byte[] colorData;
-    private byte[] colorDataSwapper;
+    private byte[] pointData;
+    private byte[] pointDataSwapper;
     private byte[] depthTableData;
     private byte[] depthTableDataSwapper;
 
@@ -31,12 +29,10 @@ public class KinectStreamer : MonoBehaviour
 
     private ComputeBuffer depthTableBuffer;
     private const int DepthTableStride = sizeof(float) * 2;
-    private const int DepthDataStride = sizeof(short);
-    private const int ColorDataStride = sizeof(byte) * 3;
+    private const int PointDataStride = sizeof(short) + sizeof(byte) * 3;
 
     private const int DepthTableSize = DepthPointsCount * DepthTableStride;
-    private const int DepthDataSize = DepthPointsCount * DepthDataStride;
-    private const int ColorDataSize = DepthPointsCount * ColorDataStride;
+    private const int PointDataSize = DepthPointsCount * PointDataStride;
 
     private bool depthTableLoaded;
     private bool depthTableSet;
@@ -67,11 +63,8 @@ public class KinectStreamer : MonoBehaviour
 
         depthTableBuffer = new ComputeBuffer(DepthPointsCount, DepthTableStride);
 
-        depthData = new byte[DepthDataSize];
-        depthDataSwapper = new byte[DepthDataSize];
-
-        colorData = new byte[ColorDataSize];
-        colorDataSwapper = new byte[ColorDataSize];
+        pointData = new byte[PointDataSize];
+        pointDataSwapper = new byte[PointDataSize];
 
         thread = new Thread(() => ReadNetworkData());
         thread.IsBackground = true;
@@ -113,12 +106,13 @@ public class KinectStreamer : MonoBehaviour
     {
         for (int i = 0; i < DepthPointsCount; i++)
         {
-            short depthVal = BitConverter.ToInt16(depthData, i * 2);
-            byte r = colorData[i * 3];
-            byte g = colorData[i * 3 + 1];
-            byte b = colorData[i * 3 + 2];
+            short depthVal = BitConverter.ToInt16(pointData, i * PointDataStride);
+            byte r = pointData[i * PointDataStride + 2];
+            byte g = pointData[i * PointDataStride + 3];
+            byte b = pointData[i * PointDataStride + 4];
             pointsArray[i] = new BufferPoint() { DepthVal = depthVal, R = r, G = g, B = b };
         }
+
         pointsBuffer.SetData(pointsArray);
     }
     
@@ -162,26 +156,14 @@ public class KinectStreamer : MonoBehaviour
                         threadTimer.Start();
 
                         offset = 0;
-                        while (offset < DepthDataSize)
+                        while (offset < PointDataSize)
                         {
-                            offset += stream.Read(depthData, offset, depthData.Length - offset);
+                            offset += stream.Read(pointData, offset, pointData.Length - offset);
                         }
-
-                        offset = 0;
-                        while (offset < ColorDataSize)
+                        
+                        lock (pointDataSwapper)
                         {
-                            offset += stream.Read(colorData, offset, colorData.Length - offset);
-                        }
-
-
-                        lock (depthDataSwapper)
-                        {
-                            depthDataSwapper = depthData;
-                        }
-
-                        lock (colorDataSwapper)
-                        {
-                            colorDataSwapper = colorData;
+                            pointDataSwapper = pointData;
                         }
 
                         ThreadFPS = 1.0f / (float)threadTimer.Elapsed.TotalSeconds;

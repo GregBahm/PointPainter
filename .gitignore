@@ -3,3 +3,13 @@
 ################################################################################
 
 /PointPainterUnity/.vs/PointPainterUnity/v15
+/PointPainterUnity/Library
+/PointPainterUnity/obj/Debug
+/PointPainterUnity/Packages
+/PointPainterUnity/Temp
+/PointPainterWPF/.vs/PointPainterWpf/v15
+/PointPainterWPF/bin/AnyCPU/Debug
+/PointPainterWPF/obj/Debug
+/PointPainterUnity/Logs
+/PointPainterUnity/PointPainterUnity.sln
+/PointPainterUnity/Assembly-CSharp.csproj

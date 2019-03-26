@@ -13,14 +13,12 @@ namespace Microsoft.Samples.Kinect.ColorBasics
     {
         private TcpListener server;
         
-        private readonly Func<Byte[]> depthDataGetter;
-        private readonly Func<Byte[]> colorDataGetter;
+        private readonly Func<Byte[]> pointDataGetter;
         private readonly Func<Byte[]> depthTableGetter;
 
-        public ServerCommunication(Func<Byte[]> depthDataGetter, Func<Byte[]> colorDataGetter, Func<Byte[]> depthTableGetter)
+        public ServerCommunication(Func<Byte[]> pointDataGetter, Func<Byte[]> depthTableGetter)
         {
-            this.depthDataGetter = depthDataGetter;
-            this.colorDataGetter = colorDataGetter;
+            this.pointDataGetter = pointDataGetter;
             this.depthTableGetter = depthTableGetter;
         }
 
@@ -46,18 +44,13 @@ namespace Microsoft.Samples.Kinect.ColorBasics
 
             while (client.Connected)
             {
-
-                byte[] depthBytes = depthDataGetter();
-                stream.Write(depthBytes, 0, depthBytes.Length);
-
-                byte[] colorTextureBytes = colorDataGetter();
-                stream.Write(colorTextureBytes, 0, colorTextureBytes.Length);
+                byte[] pointDataBytes = pointDataGetter();
+                stream.Write(pointDataBytes, 0, pointDataBytes.Length);
 
                 while (!stream.DataAvailable && client.Connected)
                 {
                     System.Threading.Thread.Sleep(1);
                 }
-                
                 if (client.Connected)
                 {
                     while (stream.DataAvailable)
