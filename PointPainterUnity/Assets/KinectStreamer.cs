@@ -11,8 +11,6 @@ using UnityEngine.Rendering;
 
 public class KinectStreamer : MonoBehaviour
 {
-    public bool ShowStreamPoints = true;
-
     public string IpAddress = "127.0.0.1";
     public int Port = 1990;
 
@@ -25,14 +23,17 @@ public class KinectStreamer : MonoBehaviour
 
     private const int DepthTextureWidth = 512;
     private const int DepthTextureHeight = 424;
-    private const int DepthPointsCount = DepthTextureWidth * DepthTextureHeight;
+    private const int FramePointsCount = DepthTextureWidth * DepthTextureHeight;
+
+    public const int MaxFrames = 64;
+    private int currentPageIndex = 0;
 
     private ComputeBuffer depthTableBuffer;
     private const int DepthTableStride = sizeof(float) * 2;
     private const int PointDataStride = sizeof(short) + sizeof(byte) * 3;
 
-    private const int DepthTableSize = DepthPointsCount * DepthTableStride;
-    private const int PointDataSize = DepthPointsCount * PointDataStride;
+    private const int DepthTableSize = FramePointsCount * DepthTableStride;
+    private const int PointDataSize = FramePointsCount * PointDataStride;
 
     private bool depthTableLoaded;
     private bool depthTableSet;
@@ -55,13 +56,13 @@ public class KinectStreamer : MonoBehaviour
 
     private void Start()
     {
-        pointsArray = new BufferPoint[DepthPointsCount];
-        pointsBuffer = new ComputeBuffer(DepthPointsCount, PointsBufferStride);
+        pointsArray = new BufferPoint[FramePointsCount];
+        pointsBuffer = new ComputeBuffer(FramePointsCount * MaxFrames, PointsBufferStride);
 
         depthTableData = new byte[DepthTableSize];
         depthTableDataSwapper = new byte[DepthTableSize];
 
-        depthTableBuffer = new ComputeBuffer(DepthPointsCount, DepthTableStride);
+        depthTableBuffer = new ComputeBuffer(FramePointsCount, DepthTableStride);
 
         pointData = new byte[PointDataSize];
         pointDataSwapper = new byte[PointDataSize];
@@ -78,10 +79,11 @@ public class KinectStreamer : MonoBehaviour
         {
             TryLoadDepthTable();
         }
-        GetSourceData();
+        SetSourceData();
         PointCloudMat.SetBuffer("_PointsBuffer", pointsBuffer);
         PointCloudMat.SetMatrix("_MasterTransform", transform.localToWorldMatrix);
         PointCloudMat.SetBuffer("_DepthTable", depthTableBuffer);
+        PointCloudMat.SetInt("_FramePointsCount", FramePointsCount);
     }
 
     private void TryLoadDepthTable()
@@ -95,16 +97,13 @@ public class KinectStreamer : MonoBehaviour
 
     private void OnRenderObject()
     {
-        if(ShowStreamPoints)
-        {
-            PointCloudMat.SetPass(0);
-            Graphics.DrawProcedural(MeshTopology.Points, 1, DepthPointsCount);
-        }
+        PointCloudMat.SetPass(0);
+        Graphics.DrawProcedural(MeshTopology.Points, 1, FramePointsCount * MaxFrames);
     }
 
-    private void GetSourceData()
+    private void SetSourceData()
     {
-        for (int i = 0; i < DepthPointsCount; i++)
+        for (int i = 0; i < FramePointsCount; i++)
         {
             short depthVal = BitConverter.ToInt16(pointData, i * PointDataStride);
             byte r = pointData[i * PointDataStride + 2];
@@ -112,8 +111,9 @@ public class KinectStreamer : MonoBehaviour
             byte b = pointData[i * PointDataStride + 4];
             pointsArray[i] = new BufferPoint() { DepthVal = depthVal, R = r, G = g, B = b };
         }
-
-        pointsBuffer.SetData(pointsArray);
+        currentPageIndex = (currentPageIndex + 1) % MaxFrames;
+        //pointsBuffer.SetData(pointsArray);
+        pointsBuffer.SetData(pointsArray, 0, FramePointsCount * currentPageIndex, FramePointsCount);
     }
     
     private void OnDestroy()

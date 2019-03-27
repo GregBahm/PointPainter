@@ -49,7 +49,7 @@
                 float3 color : TEXCOORD4;
 			};
 
-
+			uint _FramePointsCount;
             float _PointSize;
 			float _CardUvScale;
 
@@ -70,7 +70,7 @@
 				PointData datum = _PointsBuffer[instanceId];
 				float depthVal = (float)datum.depthVal / 1000; // Millimeters to meters
 				
-                float2 xyVal = _DepthTable[instanceId] * depthVal;
+                float2 xyVal = _DepthTable[instanceId % _FramePointsCount] * depthVal;
                 float3 basePos = float3(xyVal, depthVal);
 				fixed3 colorVal = DecodeColorVal(datum.R, datum.G, datum.B);
 				v2g o;
