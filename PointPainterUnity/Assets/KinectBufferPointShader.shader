@@ -20,17 +20,15 @@
 			#pragma fragment frag
 			
 			#include "UnityCG.cginc" 
-            
-			struct PointData
+
+			struct ProcessedPointData
 			{
-				int depthVal;
-				int R;
-				int G;
-				int B;
+				float3 Pos;
+				fixed3 Color;
 			};
 
             StructuredBuffer<float2> _DepthTable;
-			StructuredBuffer<PointData> _PointsBuffer;
+			StructuredBuffer<ProcessedPointData> _FullPointsBuffer;
 
 			struct v2g
 			{
@@ -54,16 +52,6 @@
 			float _CardUvScale;
 
             float4x4 _MasterTransform;
-			
-			fixed3 DecodeColorVal(int intR, int intG, int intB)
-			{
-				fixed r = (fixed)intR / 255;
-				fixed g = (fixed)intG / 255;
-				fixed b = (fixed)intB / 255;
-				fixed3 ret = fixed3(r,g,b); // Gamma correct
-				ret = pow(ret, 2.2);
-				return ret;
-			}
 			
             v2g vert(uint meshId : SV_VertexID, uint instanceId : SV_InstanceID)
             {

@@ -1,0 +1,84 @@
+﻿#pragma kernel CSMain
+
+struct RawPointData
+{
+	int DepthVal;
+	int R;
+	int G;
+	int B;
+};
+
+struct ProcessedPointData
+{
+	float3 Pos;
+	float3 Color;
+};
+
+float4 _CameraPlaneA; // xyz = Plane Normal, w = Distance From Origin
+float4 _CameraPlaneB;
+float4 _CameraPlaneC;
+float4 _CameraPlaneD;
+
+uint _CurrentFrameIndex;
+uint _FramePointsCount;
+
+
+StructuredBuffer<float2> _DepthTable;
+StructuredBuffer<RawPointData> _IncomingPointsBuffer;
+RWStructuredBuffer<ProcessedPointData> _FullPointsBuffer;
+
+float3 DecodeColorVal(int intR, int intG, int intB)
+{
+	float r = (float)intR / 255;
+	float g = (float)intG / 255;
+	float b = (float)intB / 255;
+	float3 ret = float3(r, g, b); // Gamma correct
+	ret = pow(ret, 2.2);
+	return ret;
+}
+
+bool GetPointPassesPlane(float3 pointPos, float3 cameraPlaneNormal, float cameraPlaneDistToOrigin)
+{
+	float theDot = dot(cameraPlaneNormal, pointPos);
+	float distanceToPlane = theDot + cameraPlaneDistToOrigin;
+	return distanceToPlane > 0;
+}
+
+bool GetIsPointWithinFrustrum(float3 pointPos)
+{
+	bool passesA = GetPointPassesPlane(pointPos, _CameraPlaneA.xyz, _CameraPlaneA.w);
+	bool passesB = GetPointPassesPlane(pointPos, _CameraPlaneB.xyz, _CameraPlaneB.w);
+	bool passesC = GetPointPassesPlane(pointPos, _CameraPlaneC.xyz, _CameraPlaneC.w);
+	bool passesD = GetPointPassesPlane(pointPos, _CameraPlaneD.xyz, _CameraPlaneD.w);
+	return passesA && passesB && passesC && passesD;
+}
+
+float3 GetBasePos(float rawDepthValue, uint instanceId)
+{
+	float depthVal = (float)rawDepthValue / 1000; // Millimeters to meters
+	float2 xyVal = _DepthTable[instanceId % _FramePointsCount] * depthVal;
+	return float3(xyVal, depthVal);
+}
+
+ProcessedPointData ProcessRawPoint(uint instanceId)
+{
+	RawPointData rawPoint = _IncomingPointsBuffer[instanceId];
+	float3 newBasePos = GetBasePos(rawPoint.DepthVal, instanceId);
+	float3 color = DecodeColorVal(rawPoint.R, rawPoint.G, rawPoint.B);
+	ProcessedPointData ret;
+	ret.Pos = newBasePos;
+	ret.Color = color;
+	return ret;
+}
+
+[numthreads(128,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	uint fullPointIndex = id.x + _FramePointsCount * _CurrentFrameIndex;
+	ProcessedPointData oldPoint = _FullPointsBuffer[fullPointIndex];
+
+	if (GetIsPointWithinFrustrum(oldPoint.Pos))
+	{
+		_FullPointsBuffer[fullPointIndex] = ProcessRawPoint(id.x);
+	}
+}
