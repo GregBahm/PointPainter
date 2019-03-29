@@ -27,7 +27,6 @@
 				fixed3 Color;
 			};
 
-            StructuredBuffer<float2> _DepthTable;
 			StructuredBuffer<ProcessedPointData> _FullPointsBuffer;
 
 			struct v2g
@@ -56,14 +55,9 @@
             v2g vert(uint meshId : SV_VertexID, uint instanceId : SV_InstanceID)
             {
 				PointData datum = _PointsBuffer[instanceId];
-				float depthVal = (float)datum.depthVal / 1000; // Millimeters to meters
-				
-                float2 xyVal = _DepthTable[instanceId % _FramePointsCount] * depthVal;
-                float3 basePos = float3(xyVal, depthVal);
-				fixed3 colorVal = DecodeColorVal(datum.R, datum.G, datum.B);
 				v2g o;
-                o.color = colorVal;
-				o.pos = mul(_MasterTransform, float4(basePos, 1));
+                o.color = datum.Color;
+				o.pos = mul(_MasterTransform, float4(datum.Pos, 1));
                 o.baseDepth = depthVal;
 				o.viewDir = normalize(WorldSpaceViewDir(o.pos));
 				return o;
