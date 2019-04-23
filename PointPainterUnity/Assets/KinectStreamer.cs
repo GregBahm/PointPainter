@@ -15,6 +15,10 @@ public class KinectStreamer : MonoBehaviour
     public int Port = 1990;
 
     public Material PointCloudMat;
+    public ComputeShader ComputeShader;
+    private int ComputeKernel;
+    private const int ComputeBatchSize = 128;
+    private int ComputeGroupsCount;
 
     private byte[] pointData;
     private byte[] pointDataSwapper;
@@ -25,7 +29,7 @@ public class KinectStreamer : MonoBehaviour
     private const int DepthTextureHeight = 424;
     private const int FramePointsCount = DepthTextureWidth * DepthTextureHeight;
 
-    public const int MaxFrames = 64;
+    public const int MaxFrames = 32;
     private int currentPageIndex = 0;
 
     private ComputeBuffer depthTableBuffer;
@@ -42,7 +46,13 @@ public class KinectStreamer : MonoBehaviour
     public float ThreadFPS;
 
     private static bool Run = false;
-    
+    private BufferPoint[] rawPointsArray;
+    public ComputeBuffer rawPointsBuffer;
+    private const int RawPointsBufferStride = sizeof(int) * 4;
+
+    public ComputeBuffer processedPointsBuffer;
+    public const int ProcessedPointsBuffer = sizeof(float) * 6;
+
     struct BufferPoint
     {
         public int DepthVal;
@@ -50,19 +60,21 @@ public class KinectStreamer : MonoBehaviour
         public int G;
         public int B;
     }
-    private BufferPoint[] pointsArray;
-    public ComputeBuffer pointsBuffer;
-    private const int PointsBufferStride = sizeof(int) * 4;
 
     private void Start()
     {
-        pointsArray = new BufferPoint[FramePointsCount];
-        pointsBuffer = new ComputeBuffer(FramePointsCount * MaxFrames, PointsBufferStride);
+        ComputeKernel = ComputeShader.FindKernel("CSMain");
+        ComputeGroupsCount = Mathf.CeilToInt(FramePointsCount / ComputeBatchSize);
+
+        rawPointsArray = new BufferPoint[FramePointsCount];
+        rawPointsBuffer = new ComputeBuffer(FramePointsCount, RawPointsBufferStride);
 
         depthTableData = new byte[DepthTableSize];
         depthTableDataSwapper = new byte[DepthTableSize];
 
         depthTableBuffer = new ComputeBuffer(FramePointsCount, DepthTableStride);
+
+        processedPointsBuffer = new ComputeBuffer(FramePointsCount * MaxFrames, ProcessedPointsBuffer);
 
         pointData = new byte[PointDataSize];
         pointDataSwapper = new byte[PointDataSize];
@@ -80,10 +92,33 @@ public class KinectStreamer : MonoBehaviour
             TryLoadDepthTable();
         }
         SetSourceData();
-        PointCloudMat.SetBuffer("_PointsBuffer", pointsBuffer);
+        RunComputeShader();
+
+        PointCloudMat.SetBuffer("_FullPointsBuffer", processedPointsBuffer);
         PointCloudMat.SetMatrix("_MasterTransform", transform.localToWorldMatrix);
-        PointCloudMat.SetBuffer("_DepthTable", depthTableBuffer);
-        PointCloudMat.SetInt("_FramePointsCount", FramePointsCount);
+    }
+
+    private void RunComputeShader()
+    {
+        currentPageIndex = (currentPageIndex + 1) % MaxFrames;
+
+        ComputeShader.SetBuffer(ComputeKernel,"_DepthTable", depthTableBuffer);
+        ComputeShader.SetBuffer(ComputeKernel, "_IncomingPointsBuffer", rawPointsBuffer);
+        ComputeShader.SetBuffer(ComputeKernel, "_FullPointsBuffer", processedPointsBuffer);
+        ComputeShader.SetInt("_CurrentFrameIndex", currentPageIndex);
+        ComputeShader.SetInt("_FramePointsCount", FramePointsCount);
+        Plane[] planes = GeometryUtility.CalculateFrustumPlanes(Camera.main);
+        ComputeShader.SetVector("_CameraPlaneA", PackPlaneIntoVector(planes[0]));
+        ComputeShader.SetVector("_CameraPlaneB", PackPlaneIntoVector(planes[1]));
+        ComputeShader.SetVector("_CameraPlaneC", PackPlaneIntoVector(planes[2]));
+        ComputeShader.SetVector("_CameraPlaneD", PackPlaneIntoVector(planes[3]));
+
+        ComputeShader.Dispatch(ComputeKernel, ComputeGroupsCount, 1, 1);
+    }
+
+    private Vector4 PackPlaneIntoVector(Plane plane)
+    {
+        return new Vector4(plane.normal.x, plane.normal.y, plane.normal.z, plane.distance);
     }
 
     private void TryLoadDepthTable()
@@ -109,17 +144,16 @@ public class KinectStreamer : MonoBehaviour
             byte r = pointData[i * PointDataStride + 2];
             byte g = pointData[i * PointDataStride + 3];
             byte b = pointData[i * PointDataStride + 4];
-            pointsArray[i] = new BufferPoint() { DepthVal = depthVal, R = r, G = g, B = b };
+            rawPointsArray[i] = new BufferPoint() { DepthVal = depthVal, R = r, G = g, B = b };
         }
-        currentPageIndex = (currentPageIndex + 1) % MaxFrames;
-        //pointsBuffer.SetData(pointsArray);
-        pointsBuffer.SetData(pointsArray, 0, FramePointsCount * currentPageIndex, FramePointsCount);
+       rawPointsBuffer.SetData(rawPointsArray);
     }
     
     private void OnDestroy()
     {
         depthTableBuffer.Release();
-        pointsBuffer.Release();
+        rawPointsBuffer.Release();
+        processedPointsBuffer.Release();
         Run = false;
     }
 

@@ -56,7 +56,7 @@ bool GetIsPointWithinFrustrum(float3 pointPos)
 float3 GetBasePos(float rawDepthValue, uint instanceId)
 {
 	float depthVal = (float)rawDepthValue / 1000; // Millimeters to meters
-	float2 xyVal = _DepthTable[instanceId % _FramePointsCount] * depthVal;
+	float2 xyVal = _DepthTable[instanceId] * depthVal;
 	return float3(xyVal, depthVal);
 }
 
@@ -77,7 +77,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 	uint fullPointIndex = id.x + _FramePointsCount * _CurrentFrameIndex;
 	ProcessedPointData oldPoint = _FullPointsBuffer[fullPointIndex];
 
-	if (GetIsPointWithinFrustrum(oldPoint.Pos))
+	if (!GetIsPointWithinFrustrum(oldPoint.Pos))
 	{
 		_FullPointsBuffer[fullPointIndex] = ProcessRawPoint(id.x);
 	}

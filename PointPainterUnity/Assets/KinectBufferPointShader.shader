@@ -31,12 +31,10 @@
 
 			struct v2g
 			{
-				float4 pos : SV_Position; 
-                float2 uv : TEXCOORD0;
+				float4 pos : SV_Position;  
 				float3 viewDir : TEXCOORD1;
-                float cardSize : TEXCOORD2;
-                float baseDepth : TEXCOORD3;
                 float3 color : TEXCOORD4;
+				bool bumPickle : TEXCOORD2;
 			};
 
 			struct g2f
@@ -45,8 +43,6 @@
                 float2 cardUv : TEXCOORD1;
                 float3 color : TEXCOORD4;
 			};
-
-			uint _FramePointsCount;
             float _PointSize;
 			float _CardUvScale;
 
@@ -54,18 +50,22 @@
 			
             v2g vert(uint meshId : SV_VertexID, uint instanceId : SV_InstanceID)
             {
-				PointData datum = _PointsBuffer[instanceId];
+				ProcessedPointData datum = _FullPointsBuffer[instanceId];
 				v2g o;
                 o.color = datum.Color;
 				o.pos = mul(_MasterTransform, float4(datum.Pos, 1));
-                o.baseDepth = depthVal;
 				o.viewDir = normalize(WorldSpaceViewDir(o.pos));
+				o.bumPickle = datum.Color.x > .9;
 				return o;
 			}
 
 			[maxvertexcount(4)]
 			void geo(point v2g p[1], inout TriangleStream<g2f> triStream)
 			{
+				if (p[0].bumPickle)
+				{
+					return;
+				}
 				float4 vertBase = p[0].pos;
 				float4 vertBaseClip = UnityObjectToClipPos(vertBase);
 				float size = _PointSize;

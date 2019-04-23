@@ -141,10 +141,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dae5dd5022910fd468e73c9acd75b0ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowStreamPoints: 1
   IpAddress: 127.0.0.1
   Port: 1990
   PointCloudMat: {fileID: 2100000, guid: 4062b35c441f4ca4cad38d80d80b520c, type: 2}
+  ComputeShader: {fileID: 7200000, guid: b53edaddc1a262a4db8805b4f92a0b43, type: 3}
   ThreadFPS: 0
 --- !u!4 &62145395
 Transform:
